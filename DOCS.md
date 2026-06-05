@@ -214,7 +214,7 @@ Construct orientation is `construct.quaternion` (rotated about the construct's o
 All in the **`CONFIG`** object at the top of the module:
 ```javascript
 const CONFIG = {
-  SIL_RES: 192,        // offscreen silhouette / IoU resolution (px square)
+  SIL_RES: 256,        // offscreen silhouette / IoU resolution (px square; higher = sharper edges)
   SOLVE_IOU: 0.90,     // per-light IoU required to solve (all lights must pass)
   SOLVE_HOLD: 0.26,    // s the match must be held before it locks
   IOU_EVERY: 0.11,     // s between throttled IoU read-backs (NOT every frame)
@@ -258,5 +258,6 @@ const CONFIG = {
 
 ## 16. Update history
 - **2026-06-05** (initial): 15 levels (11 single-light + 4 dual-light), IoU shadow-match engine, stars, level select, hint, audio. Single `index.html`, Three.js r0.169.
+- **2026-06-05** (visual pass): brighter "lightbox gallery" look — luminous twilight backdrop (gradient `scene.background`), bright frosted shadow-screens with high-contrast dark shadows + crisp white-hot target outlines, sharper silhouettes (`SIL_RES` 192→256), luminous glass construct, lighter menu scrim.
 
-> **Last updated:** 2026-06-05 · branch `main` (initial release)
+> **Last updated:** 2026-06-05 · branch `main` (visual pass)

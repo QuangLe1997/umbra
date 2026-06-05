@@ -41,23 +41,24 @@
   --accent:#9b8cff;           /* periwinkle */
 }
 html,body{height:100%;}
-body{ background:var(--bg); color:var(--ink); font-family:var(--body); line-height:1.45;
+body{ background:radial-gradient(135% 105% at 50% 8%, #313463 0%, #1a1c3c 48%, #0e0f24 100%);
+  color:var(--ink); font-family:var(--body); line-height:1.45;
   -webkit-font-smoothing:antialiased; display:grid; place-items:center; overflow:hidden;
   user-select:none; -webkit-user-select:none; touch-action:none; }
 body::before{ content:""; position:fixed; inset:-30%; z-index:-2; pointer-events:none;
   background:
-    radial-gradient(40% 40% at 18% 22%, color-mix(in srgb,var(--accent) 20%,transparent), transparent 60%),
-    radial-gradient(38% 38% at 82% 18%, rgba(127,170,255,.13), transparent 60%),
-    radial-gradient(45% 45% at 76% 84%, rgba(255,140,200,.10), transparent 60%),
-    radial-gradient(42% 42% at 22% 82%, rgba(120,110,230,.14), transparent 60%);
-  filter:blur(22px); animation:mesh 30s ease-in-out infinite alternate; }
+    radial-gradient(46% 46% at 18% 16%, color-mix(in srgb,var(--accent) 38%,transparent), transparent 62%),
+    radial-gradient(44% 44% at 84% 14%, rgba(150,180,255,.26), transparent 62%),
+    radial-gradient(50% 50% at 80% 88%, rgba(190,150,235,.20), transparent 64%),
+    radial-gradient(48% 48% at 18% 86%, rgba(140,130,245,.26), transparent 64%);
+  filter:blur(24px); animation:mesh 30s ease-in-out infinite alternate; }
 @keyframes mesh{ from{transform:translate3d(-3%,-2%,0) scale(1)} to{transform:translate3d(3%,3%,0) scale(1.08)} }
 @media (prefers-reduced-motion:reduce){ *{animation:none!important;} }
 
 /* ---------- MOBILE-FRAME (strategy A) ---------- */
 #app{ position:relative; width:min(100vw,480px); height:100dvh; max-height:100dvh;
-  overflow:hidden; background:linear-gradient(180deg,#080a14,#05060d);
-  box-shadow:0 0 0 1px var(--line), 0 30px 90px -20px color-mix(in srgb,var(--accent) 40%,transparent); }
+  overflow:hidden; background:linear-gradient(180deg,#262a54,#121429);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent), 0 30px 90px -20px color-mix(in srgb,var(--accent) 55%,transparent); }
 canvas#cv{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
 
 /* ---------- HUD ---------- */
@@ -100,7 +101,7 @@ canvas#cv{ position:absolute; inset:0; width:100%; height:100%; display:block; t
 
 /* ---------- OVERLAYS ---------- */
 .overlay{ position:absolute; inset:0; display:grid; place-items:center; padding:22px; z-index:10;
-  background:radial-gradient(120% 120% at 50% 0%, rgba(8,9,16,.62), rgba(5,6,13,.94)); }
+  background:radial-gradient(120% 120% at 50% 0%, rgba(30,33,64,.5), rgba(12,14,34,.86)); }
 .overlay.hidden{ display:none; } .overlay.hidden *{ pointer-events:none; }
 .panel{ width:100%; max-width:380px; max-height:calc(100dvh - 40px); overflow-y:auto; text-align:center;
   border:1px solid var(--line); background:linear-gradient(180deg,rgba(20,22,38,.9),rgba(11,12,21,.95));
@@ -294,7 +295,7 @@ function boot(){
    §14  CONFIG — single source of truth (balance numbers)
    ============================================================ */
 const CONFIG = {
-  SIL_RES: 192,              // offscreen silhouette / IoU resolution (px)
+  SIL_RES: 256,              // offscreen silhouette / IoU resolution (px) — higher = sharper edges
   SOLVE_IOU: 0.90,           // §14 per-light IoU needed to solve
   SOLVE_HOLD: 0.26,          // s the match must be sustained before locking
   IOU_EVERY: 0.11,           // s between throttled IoU checks
@@ -465,10 +466,20 @@ const MOBILE = matchMedia('(pointer:coarse)').matches || innerWidth < 540;
 renderer.setPixelRatio(Math.min(devicePixelRatio||1, MOBILE?2:3));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.06;
+renderer.toneMappingExposure = 1.14;
 
 const scene = new THREE.Scene();
-scene.background = null;
+// luminous twilight backdrop (graduated, with a soft lavender glow) — replaces the black void
+(function(){
+  const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d');
+  const lin=g.createLinearGradient(0,0,0,256);
+  lin.addColorStop(0,'#3a3d74'); lin.addColorStop(0.5,'#262a54'); lin.addColorStop(1,'#121429');
+  g.fillStyle=lin; g.fillRect(0,0,256,256);
+  const rad=g.createRadialGradient(128,90,8,128,90,200);
+  rad.addColorStop(0,'rgba(158,148,255,0.36)'); rad.addColorStop(1,'rgba(158,148,255,0)');
+  g.fillStyle=rad; g.fillRect(0,0,256,256);
+  const tx=new THREE.CanvasTexture(c); tx.colorSpace=THREE.SRGBColorSpace; scene.background=tx;
+})();
 const ACC = new THREE.Color(CONFIG.ACCENT);
 
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
@@ -476,9 +487,9 @@ camera.position.set(0, 0.1, 7.7);
 camera.lookAt(0, 0.1, 0);
 
 // lights for visible form (measurement is separate)
-scene.add(new THREE.AmbientLight(0x222840, 0.9));
-const key = new THREE.DirectionalLight(0xb9c4ff, 1.05); key.position.set(2.5,3.5,5); scene.add(key);
-const rim = new THREE.DirectionalLight(ACC, 0.6); rim.position.set(-3,1,-2); scene.add(rim);
+scene.add(new THREE.AmbientLight(0x3a4070, 1.05));
+const key = new THREE.DirectionalLight(0xd6deff, 1.25); key.position.set(2.5,3.5,5); scene.add(key);
+const rim = new THREE.DirectionalLight(ACC, 0.7); rim.position.set(-3,1,-2); scene.add(rim);
 const fill = new THREE.PointLight(ACC, 6, 16, 2); fill.position.set(0,0.5,3.2); scene.add(fill);
 
 // bloom composer
@@ -510,7 +521,7 @@ let dust;
   const N=70, pos=new Float32Array(N*3);
   for(let i=0;i<N;i++){ pos[i*3]=(Math.random()-.5)*9; pos[i*3+1]=(Math.random()-.5)*6; pos[i*3+2]=(Math.random()-.5)*5-1; }
   const gg=new THREE.BufferGeometry(); gg.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  dust=new THREE.Points(gg, new THREE.PointsMaterial({color:0x9fb0ff,size:0.035,transparent:true,opacity:0.5,depthWrite:false}));
+  dust=new THREE.Points(gg, new THREE.PointsMaterial({color:0xcdd4ff,size:0.04,transparent:true,opacity:0.65,depthWrite:false}));
   scene.add(dust);
 }
 
@@ -534,19 +545,23 @@ const panelFrag = `
   }
   void main(){
     vec2 uv=vUv;
-    // backlit screen: brighter toward center, accent tinted
-    float vig = smoothstep(1.05,0.1,length((uv-0.5)*1.7));
-    vec3 base = mix(vec3(0.02,0.025,0.05), uAccent*0.42, vig*0.9);
+    // bright frosted lightbox: luminous lavender-white center → soft periwinkle edge
+    float vig = smoothstep(1.28,0.0,length((uv-0.5)*1.5));
+    vec3 edgeCol = mix(vec3(0.12,0.13,0.24), uAccent*0.62, 0.55);
+    vec3 ctrCol  = mix(uAccent, vec3(1.0), 0.30) * 0.95;     // rich bright lavender (not blown white)
+    vec3 base = mix(edgeCol, ctrCol, vig);
     float s = texture2D(uSil, uv).r;        // current shadow (1 where construct blocks light)
     float t = texture2D(uTarget, uv).r;     // target silhouette
-    float te = edge(uTarget, uv);
-    // shadow darkens the screen
-    vec3 col = base * mix(1.0, 0.10, s*uOn);
-    // target ghost: faint fill + outline that brightens as you approach
+    float te = edge(uTarget, uv);           // crisp outline
     float gl = uGlow;
-    col += uAccent * (t*(0.05+0.10*gl) + te*(0.45+1.1*gl)) * uOn;
+    // strong-contrast shadow: darken the bright screen sharply
+    vec3 col = base * mix(1.0, 0.045, s*uOn);
+    // target: inked zone + crisp dark outline (visible on the bright screen) that lights to white-hot
+    vec3 line = mix(vec3(0.15,0.13,0.30), vec3(1.55,1.46,1.78), gl);   // dark ink → white-hot glow
+    col = mix(col, col*0.80 + uAccent*0.10, t*(0.20+0.20*gl)*uOn);     // target zone slightly inked
+    col = mix(col, line, te*(0.62+0.38*gl)*uOn);                        // crisp outline, always readable
     // solve: the shadow fills with glowing accent light
-    col = mix(col, uAccent*1.7 + vec3(0.15), uSolved * s);
+    col = mix(col, uAccent*1.75 + vec3(0.28), uSolved * s);
     gl_FragColor = vec4(col, 1.0);
   }`;
 
@@ -626,8 +641,8 @@ function buildConstruct(level){
   for(const p of level.prims){
     const geo = GEO[p.t];
     const faceMat = new THREE.MeshStandardMaterial({
-      color:0x3a3f66, roughness:0.3, metalness:0.4,
-      emissive:ACC.clone(), emissiveIntensity:0.22 });
+      color:0x4a4f90, roughness:0.26, metalness:0.2,
+      emissive:ACC.clone(), emissiveIntensity:0.34 });
     faceMats.push(faceMat);
     const mesh = new THREE.Mesh(geo, faceMat);
     mesh.scale.set(p.s[0],p.s[1],p.s[2]);
