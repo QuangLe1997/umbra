@@ -1,0 +1,7 @@
+# QA scratch — not part of the game
+tests/_raw/
+tests/_check.mjs
+tests/screenshots/smoke-*.jpg
+assets/_ogsrc.jpg
+.DS_Store
+Thumbs.db

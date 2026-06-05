@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>UMBRA — Rotate the Shadow · Silhouette Puzzle · Play Free</title>
+<meta name="description" content="UMBRA — a calm 3D shadow puzzle. Rotate a glowing construct until its cast shadow matches the target silhouette. Later levels cast TWO shadows you must solve at once. Play free in your browser." />
+
+<!-- Open Graph / social link preview -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="UMBRA" />
+<meta property="og:title" content="UMBRA — Rotate the Shadow" />
+<meta property="og:description" content="A calm shadow-silhouette puzzle. Rotate light-cast shadows to match the target — then solve two at once." />
+<meta property="og:url" content="https://quangle1997.github.io/umbra/" />
+<meta property="og:image" content="https://quangle1997.github.io/umbra/assets/og-card.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="675" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="UMBRA — Rotate the Shadow" />
+<meta name="twitter:description" content="A calm shadow-silhouette puzzle. Match the cast shadow to the target — then solve two at once." />
+<meta name="twitter:image" content="https://quangle1997.github.io/umbra/assets/og-card.jpg" />
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🌑</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+}}
+</script>
+
+<style>
+/* ---------- TOKENS ---------- */
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#06060d; --ink:#eef0ff; --mut:#9aa0c0; --line:rgba(255,255,255,.10);
+  --disp:'Orbitron',system-ui,sans-serif; --body:'Space Grotesk',system-ui,-apple-system,sans-serif;
+  --accent:#9b8cff;           /* periwinkle */
+}
+html,body{height:100%;}
+body{ background:var(--bg); color:var(--ink); font-family:var(--body); line-height:1.45;
+  -webkit-font-smoothing:antialiased; display:grid; place-items:center; overflow:hidden;
+  user-select:none; -webkit-user-select:none; touch-action:none; }
+body::before{ content:""; position:fixed; inset:-30%; z-index:-2; pointer-events:none;
+  background:
+    radial-gradient(40% 40% at 18% 22%, color-mix(in srgb,var(--accent) 20%,transparent), transparent 60%),
+    radial-gradient(38% 38% at 82% 18%, rgba(127,170,255,.13), transparent 60%),
+    radial-gradient(45% 45% at 76% 84%, rgba(255,140,200,.10), transparent 60%),
+    radial-gradient(42% 42% at 22% 82%, rgba(120,110,230,.14), transparent 60%);
+  filter:blur(22px); animation:mesh 30s ease-in-out infinite alternate; }
+@keyframes mesh{ from{transform:translate3d(-3%,-2%,0) scale(1)} to{transform:translate3d(3%,3%,0) scale(1.08)} }
+@media (prefers-reduced-motion:reduce){ *{animation:none!important;} }
+
+/* ---------- MOBILE-FRAME (strategy A) ---------- */
+#app{ position:relative; width:min(100vw,480px); height:100dvh; max-height:100dvh;
+  overflow:hidden; background:linear-gradient(180deg,#080a14,#05060d);
+  box-shadow:0 0 0 1px var(--line), 0 30px 90px -20px color-mix(in srgb,var(--accent) 40%,transparent); }
+canvas#cv{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+
+/* ---------- HUD ---------- */
+#hud{ position:absolute; inset:0; pointer-events:none; }
+#app.overlay-open #hud{ opacity:0; transition:opacity .2s; }
+#top{ position:absolute; top:calc(env(safe-area-inset-top) + 10px); left:10px; right:10px;
+  display:flex; gap:8px; align-items:flex-start; justify-content:space-between; }
+.chip{ border:1px solid var(--line); background:linear-gradient(180deg,rgba(20,22,38,.74),rgba(10,11,20,.84));
+  backdrop-filter:blur(14px); border-radius:14px; padding:8px 12px; font-family:var(--disp); font-weight:800; }
+#lvlChip{ font-size:15px; letter-spacing:.05em; line-height:1.05; }
+#lvlChip small{ display:block; font-family:var(--body); font-weight:500; font-size:10px; color:var(--mut); letter-spacing:.16em; margin-top:2px; }
+.icons{ display:flex; gap:8px; pointer-events:auto; }
+.icons button{ all:unset; box-sizing:border-box; cursor:pointer; width:42px; height:42px; display:grid; place-items:center;
+  border:1px solid var(--line); border-radius:13px; background:rgba(18,20,34,.72); backdrop-filter:blur(14px); font-size:18px; }
+
+/* closeness meter + bottom controls */
+#bottom{ position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 14px);
+  display:flex; flex-direction:column; align-items:center; gap:10px; padding:0 16px; }
+#meterWrap{ width:100%; max-width:300px; }
+#meterLabel{ display:flex; justify-content:space-between; font-family:var(--disp); font-weight:700;
+  font-size:10px; letter-spacing:.18em; color:var(--mut); margin-bottom:5px; text-transform:uppercase; }
+#meterLabel b{ color:var(--accent); }
+.meter{ height:8px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; border:1px solid var(--line); }
+.meter > i{ display:block; height:100%; width:0%; border-radius:6px;
+  background:linear-gradient(90deg, color-mix(in srgb,var(--accent) 60%,#000), var(--accent));
+  box-shadow:0 0 12px color-mix(in srgb,var(--accent) 70%,transparent); transition:width .1s linear; }
+#hint2{ font-size:11.5px; color:var(--mut); letter-spacing:.04em; text-align:center; min-height:15px; }
+#hint2 b{ color:var(--ink); }
+.rollRow{ width:100%; max-width:340px; display:flex; justify-content:space-between; pointer-events:none; }
+.rollRow button{ all:unset; box-sizing:border-box; cursor:pointer; pointer-events:auto; width:50px; height:44px; display:grid; place-items:center;
+  border:1px solid var(--line); border-radius:13px; background:rgba(18,20,34,.78); backdrop-filter:blur(12px);
+  font-size:21px; color:var(--accent); box-shadow:0 6px 18px -8px color-mix(in srgb,var(--accent) 60%,transparent); }
+.rollRow.hidden{ display:none; }
+
+/* solve toast */
+#solveTag{ position:absolute; top:38%; left:0; right:0; text-align:center; pointer-events:none; opacity:0;
+  font-family:var(--disp); font-weight:900; text-transform:uppercase; letter-spacing:.14em; font-size:13px; color:var(--accent); }
+#solveTag.show{ animation:popTag 1.1s ease forwards; }
+@keyframes popTag{ 0%{opacity:0;transform:translateY(8px) scale(.9)} 18%{opacity:1;transform:translateY(0) scale(1)} 80%{opacity:1} 100%{opacity:0} }
+
+/* ---------- OVERLAYS ---------- */
+.overlay{ position:absolute; inset:0; display:grid; place-items:center; padding:22px; z-index:10;
+  background:radial-gradient(120% 120% at 50% 0%, rgba(8,9,16,.62), rgba(5,6,13,.94)); }
+.overlay.hidden{ display:none; } .overlay.hidden *{ pointer-events:none; }
+.panel{ width:100%; max-width:380px; max-height:calc(100dvh - 40px); overflow-y:auto; text-align:center;
+  border:1px solid var(--line); background:linear-gradient(180deg,rgba(20,22,38,.9),rgba(11,12,21,.95));
+  backdrop-filter:blur(16px); border-radius:24px; padding:26px 22px;
+  box-shadow:0 26px 70px -18px color-mix(in srgb,var(--accent) 48%,transparent); }
+h1{ font-family:var(--disp); font-weight:900; text-transform:uppercase; letter-spacing:.14em;
+  font-size:clamp(40px,15vw,62px); line-height:1; margin-bottom:4px;
+  background:linear-gradient(95deg,#cdb6ff,var(--accent),#7fa6ff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.kick{ font-family:var(--disp); font-weight:700; text-transform:uppercase; letter-spacing:.3em; font-size:11px; color:var(--mut); margin-bottom:18px; }
+.lead{ color:var(--mut); font-size:14px; line-height:1.6; margin:0 2px 16px; }
+.btn{ all:unset; box-sizing:border-box; cursor:pointer; display:block; width:100%; margin:9px 0; padding:15px; text-align:center;
+  font-family:var(--disp); font-weight:800; text-transform:uppercase; letter-spacing:.12em; font-size:14px; border-radius:14px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff 6%),color-mix(in srgb,var(--accent) 66%,#000 16%));
+  color:#0b0a1e; box-shadow:0 10px 28px -10px color-mix(in srgb,var(--accent) 72%,transparent); }
+.btn.ghost{ background:rgba(255,255,255,.05); color:var(--ink); border:1px solid var(--line); box-shadow:none; }
+.btn:active{ transform:translateY(1px); }
+.row{ display:flex; gap:10px; } .row .btn{ flex:1; }
+.how{ text-align:left; color:var(--mut); font-size:13.5px; line-height:1.65; margin:6px 0 8px; }
+.how p{ margin:9px 0; } .how b{ color:var(--ink); }
+.toggle{ display:flex; align-items:center; justify-content:space-between; padding:11px 2px; font-size:14px; }
+.sw{ width:46px; height:26px; border-radius:20px; background:rgba(255,255,255,.12); position:relative; cursor:pointer; transition:.15s; }
+.sw.on{ background:var(--accent); } .sw::after{ content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:.15s; }
+.sw.on::after{ left:23px; }
+.stat{ display:flex; justify-content:space-between; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14px; }
+.stat b{ font-family:var(--disp); color:var(--accent); }
+
+/* level select grid */
+#selGrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:6px 0 2px; }
+.lvlCell{ all:unset; box-sizing:border-box; cursor:pointer; position:relative; aspect-ratio:1; border-radius:14px;
+  border:1px solid var(--line); background:linear-gradient(180deg,rgba(28,30,48,.7),rgba(14,15,26,.8));
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:4px; }
+.lvlCell .ln{ font-family:var(--disp); font-weight:800; font-size:20px; color:var(--ink); }
+.lvlCell .lname{ font-size:8.5px; letter-spacing:.06em; color:var(--mut); text-transform:uppercase; text-align:center; line-height:1.1; }
+.lvlCell .lstars{ font-size:10px; letter-spacing:1px; color:var(--accent); height:12px; }
+.lvlCell.locked{ opacity:.4; cursor:default; }
+.lvlCell.locked .ln{ color:var(--mut); }
+.lvlCell.dual{ border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); }
+.lvlCell .dl{ position:absolute; top:5px; right:6px; font-size:8px; color:var(--accent); font-family:var(--disp); letter-spacing:.5px; }
+.selHead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.selHead .ttl{ font-family:var(--disp); font-weight:800; letter-spacing:.12em; font-size:16px; }
+.selHead .tot{ font-size:12px; color:var(--mut); }
+.selHead .tot b{ color:var(--accent); font-family:var(--disp); }
+
+/* solved stars */
+#solvedStars{ font-size:38px; letter-spacing:6px; margin:6px 0 4px; height:46px; }
+#solvedStars .s{ color:rgba(255,255,255,.16); display:inline-block; }
+#solvedStars .s.on{ color:var(--accent); text-shadow:0 0 18px color-mix(in srgb,var(--accent) 80%,transparent); animation:starPop .4s ease both; }
+@keyframes starPop{ from{transform:scale(.2);opacity:0} to{transform:scale(1);opacity:1} }
+#solvedIou{ font-family:var(--disp); color:var(--accent); font-size:13px; letter-spacing:.1em; }
+
+/* reload fallback */
+#reload{ position:absolute; inset:0; display:none; place-items:center; text-align:center; padding:24px; z-index:50; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="top">
+      <div class="chip" id="lvlChip">LV 1<small>HALO</small></div>
+      <div class="icons">
+        <button id="hintBtn" aria-label="Hint">💡</button>
+        <button id="muteBtn" aria-label="Mute">🔊</button>
+        <button id="pauseBtn" aria-label="Menu">☰</button>
+      </div>
+    </div>
+    <div id="solveTag">Shadow locked</div>
+    <div id="bottom">
+      <div class="rollRow hidden" id="rollRow">
+        <button id="rollL" aria-label="Roll left">⟲</button>
+        <button id="rollR" aria-label="Roll right">⟳</button>
+      </div>
+      <div id="meterWrap">
+        <div id="meterLabel"><span>Match</span><b id="meterPct">0%</b></div>
+        <div class="meter"><i id="meterFill"></i></div>
+      </div>
+      <div id="hint2">Drag to rotate the construct</div>
+    </div>
+  </div>
+
+  <!-- MENU -->
+  <div class="overlay" id="menu">
+    <div class="panel">
+      <h1>UMBRA</h1>
+      <div class="kick">Rotate the shadow · part of QUANG ARCADE</div>
+      <p class="lead">A light throws a glowing construct's <b>shadow</b> onto the wall. Twist it until the shadow snaps into the marked silhouette. Later, <b>two lights</b> — two shadows at once.</p>
+      <button class="btn" id="playBtn">▶ Play</button>
+      <button class="btn ghost" id="selectBtn">Level select</button>
+      <button class="btn ghost" id="howBtn">How to play</button>
+      <div class="stat"><span>Stars collected</span><b id="starTot">0 / 45</b></div>
+    </div>
+  </div>
+
+  <!-- HOW TO PLAY -->
+  <div class="overlay hidden" id="how">
+    <div class="panel">
+      <h1 style="font-size:30px">How to play</h1>
+      <div class="how">
+        <p>🌑 A construct floats in a beam of light, casting a <b>shadow</b> on the back wall.</p>
+        <p>👆 <b>Drag</b> to rotate it. On levels that need a twist, use <b>two fingers</b> (or the ⟲ ⟳ buttons / Q–E keys) to roll.</p>
+        <p>🎯 Line the shadow up with the faint <b>target silhouette</b>. The closer you get, the brighter it glows.</p>
+        <p>✨ Snap it in (90%+ match) to <b>solve</b>. Cleaner matches earn more <b>stars</b>.</p>
+        <p>🔦 Late levels add a <b>second light</b> — your object must cast two different shadows that match two targets <b>at the same time</b>.</p>
+      </div>
+      <button class="btn" id="howOk">Got it</button>
+    </div>
+  </div>
+
+  <!-- LEVEL SELECT -->
+  <div class="overlay hidden" id="select">
+    <div class="panel">
+      <div class="selHead">
+        <span class="ttl">Levels</span>
+        <span class="tot"><b id="selStarTot">0</b> / 45 ★</span>
+      </div>
+      <div id="selGrid"></div>
+      <button class="btn ghost" id="selBack" style="margin-top:14px">Back</button>
+    </div>
+  </div>
+
+  <!-- PAUSE / IN-GAME MENU -->
+  <div class="overlay hidden" id="pause">
+    <div class="panel">
+      <h1 style="font-size:32px">Paused</h1>
+      <div class="kick" id="pauseSub">Level 1 · Halo</div>
+      <div class="toggle"><span>Music</span><div class="sw on" id="swMusic"></div></div>
+      <div class="toggle"><span>Sound FX</span><div class="sw on" id="swSfx"></div></div>
+      <div class="toggle"><span>Haptics</span><div class="sw on" id="swHaptic"></div></div>
+      <button class="btn" id="resumeBtn">Resume</button>
+      <button class="btn ghost" id="restartBtn">Restart level</button>
+      <button class="btn ghost" id="quitBtn">Level select</button>
+    </div>
+  </div>
+
+  <!-- SOLVED -->
+  <div class="overlay hidden" id="solved">
+    <div class="panel">
+      <div class="kick">Solved</div>
+      <div id="solvedStars"><span class="s">★</span><span class="s">★</span><span class="s">★</span></div>
+      <h1 id="solvedName" style="font-size:30px">HALO</h1>
+      <div id="solvedIou">MATCH 100%</div>
+      <div class="row" style="margin-top:18px">
+        <button class="btn ghost" id="replayBtn">Replay</button>
+        <button class="btn" id="nextBtn">Next ▶</button>
+      </div>
+      <button class="btn ghost" id="solvedSelect">Level select</button>
+    </div>
+  </div>
+
+  <!-- RELOAD FALLBACK -->
+  <div id="reload">
+    <div>
+      <h2 style="font-family:var(--disp);letter-spacing:.1em">Couldn't load the engine</h2>
+      <p style="opacity:.7;margin:8px 0 14px">Check your connection and reload.</p>
+      <button class="btn" style="max-width:200px;margin:0 auto" onclick="location.reload()">Reload</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ============================================================
+   UMBRA — 3D shadow-silhouette puzzle (rotate-to-match).
+   Match detection: render the construct silhouette from each
+   light's camera into an offscreen target, read pixels, compute
+   IoU (intersection/union) vs the target mask. Solved when every
+   light's IoU >= SOLVE_IOU. Checks are throttled, not per-frame.
+   ============================================================ */
+
+addEventListener('error', e => console.error('runtime', e.error||e.message));
+addEventListener('unhandledrejection', e => console.error('promise', e.reason));
+
+let THREE, EffectComposer, RenderPass, UnrealBloomPass, OutputPass;
+try {
+  THREE = await import('three');
+  ({ EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js'));
+  ({ RenderPass }     = await import('three/addons/postprocessing/RenderPass.js'));
+  ({ UnrealBloomPass }= await import('three/addons/postprocessing/UnrealBloomPass.js'));
+  ({ OutputPass }     = await import('three/addons/postprocessing/OutputPass.js'));
+  boot();
+} catch (err) {
+  console.error(err);
+  document.getElementById('reload').style.display = 'grid';
+  document.getElementById('hud').style.display = 'none';
+}
+
+function boot(){
+
+/* ============================================================
+   §14  CONFIG — single source of truth (balance numbers)
+   ============================================================ */
+const CONFIG = {
+  SIL_RES: 192,              // offscreen silhouette / IoU resolution (px)
+  SOLVE_IOU: 0.90,           // §14 per-light IoU needed to solve
+  SOLVE_HOLD: 0.26,          // s the match must be sustained before locking
+  IOU_EVERY: 0.11,           // s between throttled IoU checks
+  FIT: 1.95,                 // ortho half-extent of each light camera (frames the construct)
+  STAR_IOU2: 0.94,           // §7 peak match for 2nd star
+  STAR_IOU3: 0.965,          // §7 peak match for 3rd star (also requires no hint)
+  ROT_SPEED: 0.0095,         // rad per px of drag
+  ROLL_BTN: 0.16,            // rad per roll-button tap
+  // §6 light directions (unit, pointing FROM light TOWARD construct origin)
+  LIGHT_A: [0, 0, -1],       // front light  → silhouette = XY projection
+  LIGHT_B: [-1, 0, 0],       // side light   → silhouette = ZY projection (dual only)
+  ACCENT: 0x9b8cff,
+};
+
+/* ============================================================
+   §5  LEVELS — each = a construct (primitive list) + solution
+   pose (identity) + scramble + allowed axes + light count.
+   Silhouette at solution is rendered into the target mask, so
+   every level is solvable by construction. Front view (light A)
+   = projection onto XY; side view (light B) = projection onto ZY.
+   prim: {t, s:[x,y,z], p:[x,y,z], r:[x,y,z]deg}
+   t ∈ box|sphere|cyl|cone|torus
+   ============================================================ */
+const D = Math.PI/180;
+const LEVELS = [
+  // ---- Tier A: single light, one axis (locked input) ----
+  { name:'Halo', glyph:'a ring', lights:1, axes:['yaw'], scramble:{yaw:74},
+    prims:[ {t:'torus', s:[2.0,2.0,2.0]} ] },
+
+  { name:'Arrow', glyph:'an arrow', lights:1, axes:['yaw'], scramble:{yaw:66},
+    prims:[ {t:'cyl', s:[0.24,1.7,0.24], p:[-0.15,0,0], r:[0,0,90]},
+            {t:'cone', s:[0.62,0.8,0.62], p:[0.95,0,0], r:[0,0,-90]} ] },
+
+  { name:'Cat', glyph:'a cat', lights:1, axes:['yaw'], scramble:{yaw:70},
+    prims:[ {t:'sphere', s:[1.05,1.05,0.5], p:[0,0.25,0]},
+            {t:'cone', s:[0.42,0.55,0.3], p:[-0.44,0.95,0]},
+            {t:'cone', s:[0.42,0.55,0.3], p:[0.44,0.95,0]},
+            {t:'sphere', s:[0.95,0.78,0.45], p:[0,-0.72,0]} ] },
+
+  { name:'Key', glyph:'a key', lights:1, axes:['pitch'], scramble:{pitch:64},
+    prims:[ {t:'torus', s:[0.86,0.86,0.5], p:[-1.0,0,0]},
+            {t:'cyl', s:[0.17,1.7,0.17], p:[0.15,0,0], r:[0,0,90]},
+            {t:'box', s:[0.15,0.4,0.18], p:[0.7,-0.28,0]},
+            {t:'box', s:[0.15,0.56,0.18], p:[0.98,-0.36,0]} ] },
+
+  // ---- Tier B: single light, two axes (yaw + pitch, depth added) ----
+  { name:'Bird', glyph:'a bird', lights:1, axes:['yaw','pitch'], scramble:{yaw:58,pitch:42},
+    prims:[ {t:'sphere', s:[1.25,0.92,0.72], p:[0,0,0]},
+            {t:'sphere', s:[0.62,0.6,0.5], p:[0.72,0.5,0.06]},
+            {t:'cone', s:[0.3,0.5,0.26], p:[1.2,0.5,0.06], r:[0,0,-90]},
+            {t:'cone', s:[0.52,1.0,0.34], p:[-0.98,-0.12,0], r:[0,0,128]} ] },
+
+  { name:'Bottle', glyph:'a bottle', lights:1, axes:['yaw','pitch'], scramble:{yaw:54,pitch:46},
+    prims:[ {t:'cyl', s:[0.74,1.5,0.5], p:[0,-0.38,0]},
+            {t:'cone', s:[0.74,0.5,0.5], p:[0,0.6,0]},
+            {t:'cyl', s:[0.27,0.62,0.22], p:[0,1.0,0]},
+            {t:'cyl', s:[0.32,0.2,0.27], p:[0,1.36,0]} ] },
+
+  { name:'Fish', glyph:'a fish', lights:1, axes:['yaw','pitch'], scramble:{yaw:62,pitch:40},
+    prims:[ {t:'sphere', s:[1.45,0.85,0.62], p:[0.1,0,0]},
+            {t:'cone', s:[0.8,0.95,0.42], p:[-1.15,0,0], r:[0,0,90]},
+            {t:'cone', s:[0.5,0.46,0.3], p:[0.25,0.62,0], r:[0,0,8]} ] },
+
+  { name:'Sailboat', glyph:'a sailboat', lights:1, axes:['yaw','pitch'], scramble:{yaw:56,pitch:44},
+    prims:[ {t:'box', s:[1.7,0.42,0.7], p:[0,-0.78,0]},
+            {t:'cyl', s:[0.1,1.9,0.1], p:[0.05,0.2,0]},
+            {t:'cone', s:[1.0,1.35,0.12], p:[0.42,0.28,0]} ] },
+
+  // ---- Tier C: single light, three axes incl. roll ----
+  { name:'Umbrella', glyph:'an umbrella', lights:1, axes:['yaw','pitch','roll'], scramble:{yaw:40,pitch:50,roll:64},
+    prims:[ {t:'cone', s:[2.05,0.78,2.05], p:[0,0.5,0]},
+            {t:'cone', s:[0.2,0.34,0.2], p:[0,1.0,0]},
+            {t:'cyl', s:[0.13,1.55,0.13], p:[0,-0.5,0]},
+            {t:'torus', s:[0.42,0.42,0.3], p:[0.0,-1.2,0], r:[90,0,0]} ] },
+
+  { name:'Rabbit', glyph:'a rabbit', lights:1, axes:['yaw','pitch','roll'], scramble:{yaw:44,pitch:46,roll:58},
+    prims:[ {t:'sphere', s:[0.92,0.94,0.62], p:[0,0.45,0]},
+            {t:'box', s:[0.24,1.15,0.22], p:[-0.32,1.42,0], r:[0,0,11]},
+            {t:'box', s:[0.24,1.15,0.22], p:[0.32,1.42,0], r:[0,0,-11]},
+            {t:'sphere', s:[1.05,0.92,0.66], p:[0,-0.72,0]} ] },
+
+  { name:'Anchor', glyph:'an anchor', lights:1, axes:['yaw','pitch','roll'], scramble:{yaw:52,pitch:48,roll:70},
+    prims:[ {t:'torus', s:[0.52,0.52,0.4], p:[0,1.3,0]},
+            {t:'cyl', s:[0.17,2.1,0.17], p:[0,0,0]},
+            {t:'cyl', s:[0.14,1.3,0.14], p:[0,0.72,0], r:[0,0,90]},
+            {t:'cone', s:[0.46,0.72,0.32], p:[-0.62,-0.92,0], r:[0,0,52]},
+            {t:'cone', s:[0.46,0.72,0.32], p:[0.62,-0.92,0], r:[0,0,-52]} ] },
+
+  // ---- Tier D: dual light (two shadows at once) ----
+  { name:'Disc & Bar', glyph:'a disc and a bar', lights:2, axes:['yaw','pitch'], scramble:{yaw:62,pitch:38},
+    prims:[ {t:'cyl', s:[0.92,1.25,0.92], p:[0,0,0], r:[90,0,0]} ] },
+
+  { name:'Plus & Bar', glyph:'a plus and a bar', lights:2, axes:['yaw','pitch'], scramble:{yaw:58,pitch:44},
+    prims:[ {t:'box', s:[1.7,0.42,0.42], p:[0,0,0]},
+            {t:'box', s:[0.42,1.7,0.42], p:[0,0,0]} ] },
+
+  { name:'Arrow & Disc', glyph:'an arrow and a disc', lights:2, axes:['yaw','pitch','roll'], scramble:{yaw:50,pitch:44,roll:54},
+    prims:[ {t:'cyl', s:[0.4,1.5,0.4], p:[-0.15,0,0], r:[0,0,90]},
+            {t:'cone', s:[0.86,0.8,0.86], p:[0.95,0,0], r:[0,0,-90]} ] },
+
+  // finale: a tangle that is a Cat from the front light, a Key from the side light
+  { name:'Cat & Key', glyph:'a cat and a key', lights:2, axes:['yaw','pitch','roll'], scramble:{yaw:54,pitch:52,roll:66},
+    prims:[ // cat in XY plane (thin in Z) → front light
+            {t:'sphere', s:[1.0,1.0,0.34], p:[0,0.25,0]},
+            {t:'cone', s:[0.4,0.52,0.26], p:[-0.42,0.92,0]},
+            {t:'cone', s:[0.4,0.52,0.26], p:[0.42,0.92,0]},
+            {t:'sphere', s:[0.9,0.74,0.32], p:[0,-0.68,0]},
+            // key in ZY plane (thin in X) → side light
+            {t:'torus', s:[0.34,0.8,0.8], p:[0,0.95,-1.0], r:[0,90,0]},
+            {t:'cyl', s:[0.16,1.7,0.16], p:[0,0.62,0.15], r:[90,0,0]},
+            {t:'box', s:[0.16,0.36,0.15], p:[0,0.36,0.7]},
+            {t:'box', s:[0.16,0.52,0.15], p:[0,0.28,0.98]} ] },
+];
+const NLV = LEVELS.length;
+const STAR_MAX = NLV * 3;
+
+/* ============================================================
+   Save / Settings / Audio
+   ============================================================ */
+const NS = 'umbra';
+const $ = s => document.querySelector(s);
+const Save = {
+  get(k,d){ try{ const v=localStorage[`${NS}.${k}`]; return v==null?d:JSON.parse(v);}catch{return d;} },
+  set(k,v){ try{ localStorage[`${NS}.${k}`]=JSON.stringify(v);}catch{} },
+};
+const Settings = {
+  music:Save.get('music',true), sfx:Save.get('sfx',true), haptic:Save.get('haptic',true),
+  save(){ Save.set('music',this.music); Save.set('sfx',this.sfx); Save.set('haptic',this.haptic); },
+};
+let stars = Save.get('stars', {});            // { levelIndex: starCount }
+function totalStars(){ let t=0; for(const k in stars) t+=stars[k]; return t; }
+function isUnlocked(i){ return i===0 || (stars[i-1]||0) > 0; }
+
+const Audio = {
+  ctx:null, muted:Save.get('muted',false), pad:null, padGain:null, gestured:false,
+  ensure(){ if(!this.ctx) this.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    if(this.ctx.state==='suspended') this.ctx.resume(); return this.ctx; },
+  note(f=440,d=.12,type='sine',g=.12,delay=0){ if(this.muted||!Settings.sfx) return; const a=this.ensure();
+    const o=a.createOscillator(),gn=a.createGain(); o.type=type; o.frequency.value=f;
+    const t0=a.currentTime+delay; gn.gain.setValueAtTime(.0001,t0); gn.gain.exponentialRampToValueAtTime(g,t0+.02);
+    gn.gain.exponentialRampToValueAtTime(.0001,t0+d); o.connect(gn).connect(a.destination); o.start(t0); o.stop(t0+d+.02); },
+  chime(){ [523,659,784,1047,1319].forEach((f,i)=>this.note(f,.5,'sine',.12,i*.07)); },
+  click(){ this.note(420,.05,'triangle',.08); },
+  // ambient pad: two slow detuned oscillators, gain tracks closeness
+  startPad(){ if(this.muted||!Settings.music||this.pad) return; const a=this.ensure();
+    const g=a.createGain(); g.gain.value=0.0; g.connect(a.destination);
+    const o1=a.createOscillator(),o2=a.createOscillator();
+    o1.type='sine'; o2.type='sine'; o1.frequency.value=110; o2.frequency.value=110*1.5; o2.detune.value=4;
+    o1.connect(g); o2.connect(g); o1.start(); o2.start();
+    this.pad={o1,o2}; this.padGain=g; },
+  setPad(level){ if(this.padGain) this.padGain.gain.setTargetAtTime(this.muted||!Settings.music?0:0.018+level*0.03, this.ctx.currentTime, .3); },
+  // proximity tone while approaching a match
+  prox(level){ if(this.muted||!Settings.sfx||level<0.35) return; const a=this.ensure();
+    const o=a.createOscillator(),gn=a.createGain(); o.type='triangle';
+    o.frequency.value=300+level*620; gn.gain.setValueAtTime(.0001,a.currentTime);
+    gn.gain.exponentialRampToValueAtTime(.05*level,a.currentTime+.03); gn.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.16);
+    o.connect(gn).connect(a.destination); o.start(); o.stop(a.currentTime+.18); },
+  stopPad(){ if(this.padGain) this.padGain.gain.setTargetAtTime(0,this.ctx.currentTime,.3); },
+};
+function haptic(ms){ if(Settings.haptic && Audio.gestured && navigator.vibrate) navigator.vibrate(ms); }
+
+/* ============================================================
+   Three.js scene
+   ============================================================ */
+const cv = $('#cv');
+const renderer = new THREE.WebGLRenderer({ canvas:cv, antialias:true, alpha:true });
+const MOBILE = matchMedia('(pointer:coarse)').matches || innerWidth < 540;
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, MOBILE?2:3));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+
+const scene = new THREE.Scene();
+scene.background = null;
+const ACC = new THREE.Color(CONFIG.ACCENT);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+camera.position.set(0, 0.1, 7.7);
+camera.lookAt(0, 0.1, 0);
+
+// lights for visible form (measurement is separate)
+scene.add(new THREE.AmbientLight(0x222840, 0.9));
+const key = new THREE.DirectionalLight(0xb9c4ff, 1.05); key.position.set(2.5,3.5,5); scene.add(key);
+const rim = new THREE.DirectionalLight(ACC, 0.6); rim.position.set(-3,1,-2); scene.add(rim);
+const fill = new THREE.PointLight(ACC, 6, 16, 2); fill.position.set(0,0.5,3.2); scene.add(fill);
+
+// bloom composer
+let composer=null, bloom=null;
+try{
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  bloom = new UnrealBloomPass(new THREE.Vector2(512,512), 0.5, 0.6, 0.82);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+}catch(e){ console.error('bloom', e); composer=null; }
+
+/* ---- light glow sprites (motivate the shadow) ---- */
+function glowSprite(){
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  const grd=g.createRadialGradient(64,64,0,64,64,64); grd.addColorStop(0,'rgba(220,225,255,.95)');
+  grd.addColorStop(.3,'rgba(160,160,255,.5)'); grd.addColorStop(1,'rgba(120,120,255,0)');
+  g.fillStyle=grd; g.fillRect(0,0,128,128);
+  const tx=new THREE.CanvasTexture(c); tx.colorSpace=THREE.SRGBColorSpace;
+  const m=new THREE.Sprite(new THREE.SpriteMaterial({map:tx,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  return m;
+}
+const glowA = glowSprite(); glowA.scale.set(1.5,1.5,1); glowA.position.set(1.4,2.4,3.6); scene.add(glowA);
+const glowB = glowSprite(); glowB.scale.set(1.3,1.3,1); glowB.position.set(4.2,1.6,1.2); scene.add(glowB);
+
+/* ---- dust motes ---- */
+let dust;
+{
+  const N=70, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ pos[i*3]=(Math.random()-.5)*9; pos[i*3+1]=(Math.random()-.5)*6; pos[i*3+2]=(Math.random()-.5)*5-1; }
+  const gg=new THREE.BufferGeometry(); gg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  dust=new THREE.Points(gg, new THREE.PointsMaterial({color:0x9fb0ff,size:0.035,transparent:true,opacity:0.5,depthWrite:false}));
+  scene.add(dust);
+}
+
+/* ============================================================
+   Shadow panels (back walls that show shadow + target)
+   ============================================================ */
+const SIL = CONFIG.SIL_RES;
+function makeRT(){ return new THREE.WebGLRenderTarget(SIL,SIL,{ minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, depthBuffer:true }); }
+
+const panelVert = `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `;
+const panelFrag = `
+  precision highp float;
+  varying vec2 vUv;
+  uniform sampler2D uSil; uniform sampler2D uTarget;
+  uniform vec3 uAccent; uniform float uGlow; uniform float uSolved; uniform float uTexel; uniform float uOn;
+  float edge(sampler2D t, vec2 uv){
+    float c=texture2D(t,uv).r;
+    float l=texture2D(t,uv+vec2(-uTexel,0.)).r, r=texture2D(t,uv+vec2(uTexel,0.)).r;
+    float u=texture2D(t,uv+vec2(0.,uTexel)).r, d=texture2D(t,uv+vec2(0.,-uTexel)).r;
+    return clamp(max(max(abs(c-l),abs(c-r)),max(abs(c-u),abs(c-d)))*1.6,0.,1.);
+  }
+  void main(){
+    vec2 uv=vUv;
+    // backlit screen: brighter toward center, accent tinted
+    float vig = smoothstep(1.05,0.1,length((uv-0.5)*1.7));
+    vec3 base = mix(vec3(0.02,0.025,0.05), uAccent*0.42, vig*0.9);
+    float s = texture2D(uSil, uv).r;        // current shadow (1 where construct blocks light)
+    float t = texture2D(uTarget, uv).r;     // target silhouette
+    float te = edge(uTarget, uv);
+    // shadow darkens the screen
+    vec3 col = base * mix(1.0, 0.10, s*uOn);
+    // target ghost: faint fill + outline that brightens as you approach
+    float gl = uGlow;
+    col += uAccent * (t*(0.05+0.10*gl) + te*(0.45+1.1*gl)) * uOn;
+    // solve: the shadow fills with glowing accent light
+    col = mix(col, uAccent*1.7 + vec3(0.15), uSolved * s);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
+class Panel{
+  constructor(){
+    this.rtSil = makeRT();
+    this.rtTarget = makeRT();
+    this.targetBuf = new Uint8Array(SIL*SIL*4);
+    this.silBuf = new Uint8Array(SIL*SIL*4);
+    this.mat = new THREE.ShaderMaterial({
+      vertexShader:panelVert, fragmentShader:panelFrag,
+      uniforms:{ uSil:{value:this.rtSil.texture}, uTarget:{value:this.rtTarget.texture},
+        uAccent:{value:ACC.clone()}, uGlow:{value:0}, uSolved:{value:0}, uTexel:{value:1/SIL}, uOn:{value:1} },
+    });
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.0,3.0), this.mat);
+    // ortho camera aligned to the light direction
+    this.cam = new THREE.OrthographicCamera(-CONFIG.FIT,CONFIG.FIT,CONFIG.FIT,-CONFIG.FIT,0.1,40);
+    this.cam.layers.set(1);            // only the construct (layer 1)
+    this.iou=0; this.targetArea=0;
+  }
+  aim(dir, target){ // place ortho cam opposite the light dir, looking at the construct
+    const t = target || new THREE.Vector3(0,0,0);
+    const d = new THREE.Vector3(...dir).normalize();
+    this.cam.position.copy(t).add(d.clone().multiplyScalar(-12));
+    this.cam.up.set(0,1,0);
+    this.cam.lookAt(t);
+    this.cam.updateMatrixWorld();
+  }
+  setFit(r){ this.cam.left=-r; this.cam.right=r; this.cam.top=r; this.cam.bottom=-r; this.cam.updateProjectionMatrix(); }
+  dispose(){ this.rtSil.dispose(); this.rtTarget.dispose(); this.mat.dispose(); this.mesh.geometry.dispose(); }
+}
+
+const whiteMat = new THREE.MeshBasicMaterial({ color:0xffffff });
+const BLACK = new THREE.Color(0x000000);
+let panels = [];
+function renderSil(panel, rt){
+  const prevBg = scene.background, prevOR = scene.overrideMaterial;
+  scene.background = BLACK;
+  scene.overrideMaterial = whiteMat;
+  renderer.setRenderTarget(rt);
+  renderer.clear(true,true,true);
+  renderer.render(scene, panel.cam);
+  renderer.setRenderTarget(null);
+  scene.overrideMaterial = prevOR; scene.background = prevBg;
+}
+function constructRadius(){ // max vertex distance from the construct's own center
+  const box = new THREE.Box3().setFromObject(construct);
+  const o = construct.position, c=[box.min,box.max]; let r=0.1;
+  for(let xi=0;xi<2;xi++)for(let yi=0;yi<2;yi++)for(let zi=0;zi<2;zi++){
+    r=Math.max(r, Math.hypot(c[xi].x-o.x, c[yi].y-o.y, c[zi].z-o.z));
+  }
+  return r;
+}
+function readArea(buf){ let a=0; for(let i=0;i<buf.length;i+=4) if(buf[i]>127) a++; return a; }
+function computeIoU(panel){
+  renderer.readRenderTargetPixels(panel.rtSil, 0,0, SIL,SIL, panel.silBuf);
+  const s=panel.silBuf, t=panel.targetBuf; let inter=0, uni=0;
+  for(let i=0;i<s.length;i+=4){ const a=s[i]>127, b=t[i]>127; if(a&&b)inter++; if(a||b)uni++; }
+  panel.iou = uni? inter/uni : 0;
+  return panel.iou;
+}
+
+/* ============================================================
+   Construct builder
+   ============================================================ */
+const GEO = {
+  box: new THREE.BoxGeometry(1,1,1),
+  sphere: new THREE.SphereGeometry(0.5,32,24),
+  cyl: new THREE.CylinderGeometry(0.5,0.5,1,40),
+  cone: new THREE.ConeGeometry(0.5,1,40),
+  torus: new THREE.TorusGeometry(0.5,0.17,18,44),
+};
+let construct=null, edgeLines=[], faceMats=[];
+function buildConstruct(level){
+  disposeConstruct();
+  const g = new THREE.Group();
+  for(const p of level.prims){
+    const geo = GEO[p.t];
+    const faceMat = new THREE.MeshStandardMaterial({
+      color:0x3a3f66, roughness:0.3, metalness:0.4,
+      emissive:ACC.clone(), emissiveIntensity:0.22 });
+    faceMats.push(faceMat);
+    const mesh = new THREE.Mesh(geo, faceMat);
+    mesh.scale.set(p.s[0],p.s[1],p.s[2]);
+    if(p.p) mesh.position.set(p.p[0],p.p[1],p.p[2]);
+    if(p.r) mesh.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
+    mesh.layers.enable(1);               // visible to light cameras
+    g.add(mesh);
+    // neon edges (layer 0 only → excluded from silhouette)
+    const eg = new THREE.EdgesGeometry(geo, 24);
+    const lm = new THREE.LineBasicMaterial({ color:0xe2d8ff });   // bright → catches bloom
+    const line = new THREE.LineSegments(eg, lm);
+    line.scale.copy(mesh.scale); line.position.copy(mesh.position); line.rotation.copy(mesh.rotation);
+    line.layers.set(0);
+    edgeLines.push({line, eg, lm});
+    g.add(line);
+  }
+  scene.add(g);
+  construct = g;
+  return g;
+}
+function disposeConstruct(){
+  if(construct){ scene.remove(construct); }
+  for(const f of faceMats) f.dispose();
+  for(const e of edgeLines){ e.eg.dispose(); e.lm.dispose(); }
+  faceMats=[]; edgeLines=[]; construct=null;
+}
+
+/* ============================================================
+   Game state + flow
+   ============================================================ */
+const S = {
+  mode:'menu',           // menu | playing | solved | paused
+  lvl:0, level:null,
+  startQuat:new THREE.Quaternion(),
+  closeness:0, peak:0, solved:false, holdT:0, t0:0, hintUsed:false,
+  iouTimer:0, idle:0,
+};
+window._U = { S, stars, getQuat:()=> construct ? construct.quaternion.toArray() : [0,0,0,1] };
+
+function scrambleQuat(level){
+  const q = new THREE.Quaternion();
+  const sc = level.scramble||{};
+  if(sc.yaw)   q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), sc.yaw*D));
+  if(sc.pitch) q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), sc.pitch*D));
+  if(sc.roll)  q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), sc.roll*D));
+  return q;
+}
+
+function layoutPanels(level){
+  for(const p of panels){ scene.remove(p.mesh); p.dispose(); }
+  panels = [];
+  if(level.lights===1){
+    // construct floats LOW, one shadow-screen sits ABOVE it (object & shadow stay distinct)
+    construct.position.set(0,-1.3,0.5); construct.scale.setScalar(0.68);
+    const A = new Panel(); A.aim(CONFIG.LIGHT_A, construct.position);
+    A.mesh.position.set(0,1.24,-1.7); A.mesh.scale.set(0.98,0.98,1);
+    scene.add(A.mesh); panels=[A];
+    glowA.position.set(1.4,2.7,3.4); glowB.visible=false;
+  } else {
+    // dual: construct between two stacked shadow-screens, each its own light
+    construct.position.set(0,0,0.6); construct.scale.setScalar(0.56);
+    const A = new Panel(); A.aim(CONFIG.LIGHT_A, construct.position);
+    A.mesh.position.set(0,1.62,-1.9); A.mesh.scale.set(0.78,0.78,1);
+    scene.add(A.mesh);
+    const B = new Panel(); B.aim(CONFIG.LIGHT_B, construct.position);
+    B.mesh.position.set(0,-1.62,-1.9); B.mesh.scale.set(0.78,0.78,1);
+    scene.add(B.mesh);
+    panels=[A,B];
+    glowA.position.set(1.7,2.9,3.4); glowB.position.set(-1.7,-2.5,3.4); glowB.visible=true;
+  }
+}
+
+function loadLevel(i, replay){
+  S.lvl = i; const level = LEVELS[i]; S.level = level;
+  buildConstruct(level);
+  layoutPanels(level);
+  // fit each light camera to the construct's bounding radius (no clip at any rotation)
+  construct.quaternion.identity();
+  construct.updateMatrixWorld(true);
+  const r = constructRadius()*1.1;
+  for(const p of panels) p.setFit(r);
+  // render target masks from the solution pose (identity)
+  for(const p of panels){
+    renderSil(p, p.rtTarget);
+    renderer.readRenderTargetPixels(p.rtTarget,0,0,SIL,SIL,p.targetBuf);
+    p.targetArea = readArea(p.targetBuf);
+  }
+  // scramble to start
+  S.startQuat = scrambleQuat(level);
+  construct.quaternion.copy(S.startQuat);
+  // reset state
+  S.closeness=0; S.peak=0; S.solved=false; S.holdT=0; S.hintUsed=false; S.idle=0;
+  S.t0 = nowS(); S.mode='playing'; S.iouTimer=0;
+  // HUD
+  $('#lvlChip').innerHTML = `LV ${i+1}<small>${level.name}</small>`;
+  $('#pauseSub').textContent = `Level ${i+1} · ${level.name}`;
+  const needRoll = level.axes.includes('roll');
+  $('#rollRow').classList.toggle('hidden', !needRoll);
+  setHint(level, needRoll);
+  for(const p of panels){ p.mat.uniforms.uSolved.value=0; p.mat.uniforms.uGlow.value=0; }
+  setMeter(0);
+  hideAll(); $('#app').classList.remove('overlay-open');
+  Audio.startPad();
+}
+function setHint(level, needRoll){
+  let txt;
+  if(level.lights===2) txt = 'Match <b>both</b> shadows at once';
+  else if(level.axes.length===1) txt = level.axes[0]==='yaw' ? 'Drag <b>←→</b> to rotate' : 'Drag <b>↑↓</b> to rotate';
+  else if(needRoll) txt = 'Drag to rotate · <b>two fingers</b> to twist';
+  else txt = 'Drag to rotate in any direction';
+  $('#hint2').innerHTML = txt;
+}
+
+function nowS(){ return performance.now()/1000; }
+function setMeter(v){ const pct=Math.round(v*100); $('#meterFill').style.width=Math.min(100,pct)+'%'; $('#meterPct').textContent=pct+'%'; }
+
+function evaluate(){
+  // render silhouettes (every frame for the wall) and read IoU on throttle
+  let minIoU = 1;
+  for(const p of panels){
+    renderSil(p, p.rtSil);
+  }
+  S.iouTimer += clampDt;
+  if(S.iouTimer >= CONFIG.IOU_EVERY){
+    S.iouTimer = 0;
+    for(const p of panels){ computeIoU(p); }
+  }
+  for(const p of panels){ minIoU = Math.min(minIoU, p.iou); }
+  // smooth closeness toward the measured value
+  S.closeness += (minIoU - S.closeness) * 0.35;
+  if(S.closeness > S.peak) S.peak = S.closeness;
+  // drive panel glow + meter
+  for(const p of panels){
+    const g = Math.max(0, (p.iou-0.25)/0.75);
+    p.mat.uniforms.uGlow.value += (g - p.mat.uniforms.uGlow.value)*0.3;
+  }
+  setMeter(S.closeness);
+  Audio.setPad(S.closeness);
+  // solve detection (sustained)
+  if(!S.solved){
+    if(minIoU >= CONFIG.SOLVE_IOU){ S.holdT += clampDt; if(S.holdT >= CONFIG.SOLVE_HOLD) doSolve(); }
+    else S.holdT = Math.max(0, S.holdT - clampDt*2);
+  }
+}
+
+let proxLast=0;
+function proximityFeedback(){
+  // rising tone steps as closeness crosses thresholds
+  const c = S.closeness;
+  if(c - proxLast > 0.08 && c > 0.4){ Audio.prox(c); proxLast=c; }
+  if(c < proxLast) proxLast = c;
+}
+
+function doSolve(){
+  S.solved=true; S.mode='solved';
+  const peakPct = Math.round(S.peak*100);
+  // stars: 1 solved, +1 clean match, +1 near-perfect & no hint
+  let st=1; if(S.peak>=CONFIG.STAR_IOU2) st=2; if(S.peak>=CONFIG.STAR_IOU3 && !S.hintUsed) st=3;
+  const prev = stars[S.lvl]||0; if(st>prev){ stars[S.lvl]=st; Save.set('stars',stars); }
+  // visuals
+  for(const p of panels){ animateSolve(p); }
+  $('#solveTag').classList.remove('show'); void $('#solveTag').offsetWidth; $('#solveTag').classList.add('show');
+  Audio.chime(); haptic([18,40,18]);
+  flashConstruct();
+  // populate solved panel
+  const starsEl = $('#solvedStars').children;
+  for(let i=0;i<3;i++){ starsEl[i].classList.remove('on'); }
+  $('#solvedName').textContent = S.level.name;
+  $('#solvedIou').textContent = `MATCH ${Math.min(100,peakPct)}%`;
+  setTimeout(()=>{ for(let i=0;i<st;i++){ setTimeout(()=>{ starsEl[i].classList.add('on'); Audio.note(700+i*180,.3,'sine',.12); }, i*230); } }, 460);
+  $('#nextBtn').style.display = (S.lvl < NLV-1) ? '' : 'none';
+  setTimeout(()=>{ show('solved'); $('#app').classList.add('overlay-open'); refreshStarTotals(); }, 900);
+  Save.set('lastLevel', S.lvl);
+}
+let solveAnim=[];
+function animateSolve(p){ solveAnim.push({p, t:0}); }
+function flashConstruct(){ for(const f of faceMats){ f.emissiveIntensity = 0.9; } }
+
+/* ============================================================
+   Input — arcball drag + two-finger twist + roll buttons/keys
+   ============================================================ */
+const pointers = new Map();
+let dragLast=null, twoStartAng=0, twoStartQuat=null;
+function axisAllowed(a){ return S.level && S.level.axes.includes(a); }
+function applyYawPitch(dx,dy){
+  if(S.mode!=='playing') return;
+  let q = new THREE.Quaternion();
+  if(axisAllowed('yaw'))   q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), dx*CONFIG.ROT_SPEED));
+  if(axisAllowed('pitch')) q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), dy*CONFIG.ROT_SPEED));
+  construct.quaternion.premultiply(q);
+  S.idle=0;
+}
+function applyRoll(ang){
+  if(S.mode!=='playing' || !axisAllowed('roll')) return;
+  const q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), ang);
+  construct.quaternion.premultiply(q); S.idle=0;
+}
+cv.addEventListener('pointerdown', e=>{
+  Audio.ensure(); Audio.gestured=true;
+  cv.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1){ dragLast={x:e.clientX,y:e.clientY}; }
+  else if(pointers.size===2){ const a=[...pointers.values()]; twoStartAng=Math.atan2(a[1].y-a[0].y,a[1].x-a[0].x); twoStartQuat=construct?construct.quaternion.clone():null; }
+});
+cv.addEventListener('pointermove', e=>{
+  if(!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1 && dragLast){
+    applyYawPitch(e.clientX-dragLast.x, e.clientY-dragLast.y);
+    dragLast={x:e.clientX,y:e.clientY};
+  } else if(pointers.size===2 && twoStartQuat){
+    const a=[...pointers.values()]; const ang=Math.atan2(a[1].y-a[0].y,a[1].x-a[0].x);
+    let dAng=ang-twoStartAng;
+    if(axisAllowed('roll')){ construct.quaternion.copy(twoStartQuat); applyRollAbsolute(dAng); }
+    // also allow gentle yaw/pitch from two-finger centroid drag? keep simple: twist only
+    S.idle=0;
+  }
+});
+function applyRollAbsolute(ang){ const q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), ang); construct.quaternion.premultiply(q); }
+function endPointer(e){ pointers.delete(e.pointerId); dragLast=null; twoStartQuat=null; if(pointers.size===1){ const a=[...pointers.entries()][0]; dragLast={x:a[1].x,y:a[1].y}; } }
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', endPointer);
+$('#rollL').onclick = ()=>{ Audio.ensure(); Audio.gestured=true; applyRoll(CONFIG.ROLL_BTN); Audio.click(); };
+$('#rollR').onclick = ()=>{ Audio.ensure(); Audio.gestured=true; applyRoll(-CONFIG.ROLL_BTN); Audio.click(); };
+addEventListener('keydown', e=>{
+  if(S.mode==='playing'){
+    const k=e.key;
+    if(k==='ArrowLeft') applyYawPitch(-26,0);
+    else if(k==='ArrowRight') applyYawPitch(26,0);
+    else if(k==='ArrowUp') applyYawPitch(0,-26);
+    else if(k==='ArrowDown') applyYawPitch(0,26);
+    else if(k==='q'||k==='Q') applyRoll(CONFIG.ROLL_BTN);
+    else if(k==='e'||k==='E') applyRoll(-CONFIG.ROLL_BTN);
+  }
+  if(e.key==='Escape'){ if(S.mode==='playing') pauseGame(); else if(S.mode==='paused') resumeGame(); }
+});
+
+/* ---- hint: briefly show the solved silhouette as a bright ghost ---- */
+let hintT=0;
+$('#hintBtn').onclick = ()=>{
+  if(S.mode!=='playing') return;
+  Audio.ensure(); Audio.gestured=true; S.hintUsed=true; hintT=1.4; Audio.note(880,.18,'sine',.1);
+  $('#hintBtn').style.opacity=.5;
+};
+
+/* ============================================================
+   Overlays / scene manager
+   ============================================================ */
+const Scenes=['menu','how','select','pause','solved'];
+function show(id){ Scenes.forEach(s=>$('#'+s).classList.toggle('hidden', s!==id)); }
+function hideAll(){ Scenes.forEach(s=>$('#'+s).classList.add('hidden')); }
+
+function buildSelectGrid(){
+  const grid=$('#selGrid'); grid.innerHTML='';
+  for(let i=0;i<NLV;i++){
+    const lv=LEVELS[i], unlocked=isUnlocked(i), st=stars[i]||0;
+    const cell=document.createElement('button');
+    cell.className='lvlCell'+(unlocked?'':' locked')+(lv.lights===2?' dual':'');
+    const starStr = st>0 ? '★'.repeat(st)+'☆'.repeat(3-st) : (unlocked?'☆☆☆':'');
+    cell.innerHTML = `${lv.lights===2?'<span class="dl">2◑</span>':''}<span class="ln">${unlocked?(i+1):'🔒'}</span><span class="lname">${lv.name}</span><span class="lstars">${starStr}</span>`;
+    if(unlocked) cell.onclick=()=>{ Audio.ensure(); Audio.gestured=true; Audio.click(); loadLevel(i); };
+    grid.appendChild(cell);
+  }
+}
+function refreshStarTotals(){ const t=totalStars(); $('#starTot').textContent=`${t} / ${STAR_MAX}`; $('#selStarTot').textContent=t; }
+
+function firstUnsolved(){ for(let i=0;i<NLV;i++){ if(!(stars[i]>0) && isUnlocked(i)) return i; } return Math.min(NLV-1, Object.keys(stars).length); }
+
+function toMenu(){ S.mode='menu'; Audio.stopPad(); refreshStarTotals(); show('menu'); $('#app').classList.add('overlay-open'); }
+function openSelect(){ buildSelectGrid(); refreshStarTotals(); show('select'); $('#app').classList.add('overlay-open'); }
+function pauseGame(){ if(S.mode!=='playing') return; S.mode='paused'; Audio.stopPad(); show('pause'); $('#app').classList.add('overlay-open'); }
+function resumeGame(){ if(S.mode!=='paused') return; S.mode='playing'; Audio.startPad(); hideAll(); $('#app').classList.remove('overlay-open'); }
+
+/* ---- wire UI ---- */
+$('#playBtn').onclick   = ()=>{ Audio.ensure(); Audio.gestured=true; Audio.click(); if(!Save.get('onboarded',false)){ Save.set('onboarded',true); show('how'); } else loadLevel(firstUnsolved()); };
+$('#selectBtn').onclick = ()=>{ Audio.ensure(); Audio.gestured=true; Audio.click(); openSelect(); };
+$('#howBtn').onclick    = ()=>{ Audio.click(); show('how'); };
+$('#howOk').onclick     = ()=>{ Audio.ensure(); Audio.gestured=true; Audio.click(); loadLevel(firstUnsolved()); };
+$('#selBack').onclick   = ()=>{ Audio.click(); toMenu(); };
+$('#pauseBtn').onclick  = ()=>{ Audio.ensure(); Audio.gestured=true; S.mode==='playing'?pauseGame():(S.mode==='paused'?resumeGame():toMenu()); };
+$('#resumeBtn').onclick = ()=>{ Audio.click(); resumeGame(); };
+$('#restartBtn').onclick= ()=>{ Audio.click(); loadLevel(S.lvl); };
+$('#quitBtn').onclick   = ()=>{ Audio.click(); openSelect(); };
+$('#replayBtn').onclick = ()=>{ Audio.click(); $('#hintBtn').style.opacity=1; loadLevel(S.lvl); };
+$('#nextBtn').onclick   = ()=>{ Audio.click(); $('#hintBtn').style.opacity=1; loadLevel(Math.min(NLV-1,S.lvl+1)); };
+$('#solvedSelect').onclick=()=>{ Audio.click(); openSelect(); };
+$('#muteBtn').onclick   = ()=>{ Audio.muted=!Audio.muted; Save.set('muted',Audio.muted); $('#muteBtn').textContent=Audio.muted?'🔇':'🔊'; Audio.ensure(); if(!Audio.muted&&S.mode==='playing')Audio.startPad(); else Audio.stopPad(); };
+function bindSwitch(el,key){ const sw=$(el); const sync=()=>sw.classList.toggle('on',Settings[key]); sync(); sw.onclick=()=>{ Settings[key]=!Settings[key]; Settings.save(); sync(); Audio.click(); }; }
+bindSwitch('#swMusic','music'); bindSwitch('#swSfx','sfx'); bindSwitch('#swHaptic','haptic');
+
+/* ============================================================
+   Resize + main loop
+   ============================================================ */
+function resize(){
+  const r=cv.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width/r.height; camera.updateProjectionMatrix();
+  if(composer) composer.setSize(r.width, r.height);
+}
+addEventListener('resize', resize);
+
+let last=performance.now(), clampDt=0;
+function loop(now){
+  clampDt = Math.min((now-last)/1000, 0.05); last=now;
+  // idle drift of the scene for life
+  const t=now/1000;
+  glowA.position.x = 1.4 + Math.sin(t*0.5)*0.15;
+  if(dust){ dust.rotation.y = t*0.02; }
+  camera.position.x = Math.sin(t*0.18)*0.18; camera.lookAt(0,0.1,0);
+
+  if(S.mode==='playing' || S.mode==='solved'){
+    S.idle += clampDt;
+    if(S.mode==='playing'){ evaluate(); proximityFeedback(); }
+    // hint ghost
+    if(hintT>0){ hintT-=clampDt;
+      for(const p of panels){ p.mat.uniforms.uGlow.value = Math.max(p.mat.uniforms.uGlow.value, 0.9*Math.min(1,hintT)); }
+      if(hintT<=0) $('#hintBtn').style.opacity=1;
+    }
+    // solve panel fill animation
+    if(solveAnim.length){ for(const a of solveAnim){ a.t=Math.min(1,a.t+clampDt*1.6); a.p.mat.uniforms.uSolved.value=a.t; } if(solveAnim[0].t>=1) solveAnim=[]; }
+    // ease construct emissive back after solve flash
+    if(S.mode==='solved'){ for(const f of faceMats){ f.emissiveIntensity += (0.18-f.emissiveIntensity)*0.04; } }
+  }
+  if(composer) composer.render(); else renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   QA hook: ?shot=scene[:level]
+   ============================================================ */
+function applyShot(){
+  const q=new URLSearchParams(location.search); const shot=q.get('shot'); if(!shot) return;
+  const [scn, arg] = shot.split(':'); const n = arg? Math.max(0,Math.min(NLV-1, parseInt(arg)-1)) : 0;
+  Audio.muted=true;
+  if(scn==='menu'){ refreshStarTotals(); show('menu'); $('#app').classList.add('overlay-open'); }
+  else if(scn==='how'){ show('how'); $('#app').classList.add('overlay-open'); }
+  else if(scn==='select'){ stars['0']=3; stars['1']=2; stars['2']=1; buildSelectGrid(); refreshStarTotals(); show('select'); $('#app').classList.add('overlay-open'); }
+  else if(scn==='play'){ loadLevel(n); }
+  else if(scn==='near'){ loadLevel(n); construct.quaternion.slerpQuaternions(S.startQuat, new THREE.Quaternion(), 0.6); }
+  else if(scn==='solved'){ loadLevel(n); construct.quaternion.identity(); S.peak=1; setTimeout(()=>doSolve(), 60); }
+  else if(scn==='pause'){ loadLevel(n); pauseGame(); }
+}
+window._U.probe = (i)=>{
+  loadLevel(i);
+  for(const p of panels){ renderSil(p,p.rtSil); computeIoU(p); }
+  const startI = panels.map(p=>+p.iou.toFixed(3));
+  construct.quaternion.identity(); construct.updateMatrixWorld(true);
+  for(const p of panels){ renderSil(p,p.rtSil); computeIoU(p); }
+  const solveI = panels.map(p=>+p.iou.toFixed(3));
+  return { i, name:S.level.name, lights:panels.length, start:startI, solved:solveI, tAreas:panels.map(p=>p.targetArea) };
+};
+window._load=(n)=>loadLevel(n-1);
+window._near=()=>{ construct.quaternion.slerpQuaternions(construct.quaternion, new THREE.Quaternion(), 0.85); };
+window._solveNow=()=>{ construct.quaternion.identity(); };
+
+/* ============================================================
+   Boot
+   ============================================================ */
+$('#muteBtn').textContent = Audio.muted?'🔇':'🔊';
+refreshStarTotals();
+resize();
+requestAnimationFrame(loop);
+applyShot();
+if(!new URLSearchParams(location.search).get('shot')){ toMenu(); }
+
+} /* /boot */
+</script>
+</body>
+</html>
